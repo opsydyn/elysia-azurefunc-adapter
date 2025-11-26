@@ -1,0 +1,15 @@
+# Ignore everything by default
+*
+
+# Allow specific files
+!src/**/*.ts
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsdown.config.ts
+!README.md
+!LICENSE
+!CHANGELOG.md
+!CONTRIBUTING.md
+!.changeset/**
+!.github/**
