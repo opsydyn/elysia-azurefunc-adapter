@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+### Minor Changes
+
+- 0109ed9: Add the v2 roadmap and harden the package with Biome and Knip static-analysis gates in CI.
+
 ## 1.2.0
 
 ### Minor Changes
