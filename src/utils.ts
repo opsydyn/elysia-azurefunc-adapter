@@ -13,6 +13,41 @@ function splitCookiePart(part: string): [string, string | undefined] {
 	];
 }
 
+function decodeCookieValue(value: string): string {
+	try {
+		return decodeURIComponent(value);
+	} catch {
+		return value;
+	}
+}
+
+function parseCookieDate(value: string | undefined): Date | undefined {
+	if (!value) return undefined;
+
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function parseCookieMaxAge(value: string | undefined): number | undefined {
+	if (!value) return undefined;
+
+	const maxAge = Number.parseInt(value, 10);
+	return Number.isNaN(maxAge) ? undefined : maxAge;
+}
+
+function parseSameSite(value: string | undefined) {
+	switch (value?.toLowerCase()) {
+		case "strict":
+			return "Strict";
+		case "lax":
+			return "Lax";
+		case "none":
+			return "None";
+		default:
+			return undefined;
+	}
+}
+
 export const streamToAsyncIterator = (readable: Response["body"]) => {
 	if (readable == null) return null;
 	const reader = readable.getReader();
@@ -78,13 +113,13 @@ export function parseCookieString(cookieString: string): Cookie {
 
 	return {
 		name,
-		value: decodeURIComponent(encodedValue),
+		value: decodeCookieValue(encodedValue),
 		path: attrs.path,
-		sameSite: attrs.samesite as "Strict" | "Lax" | "None" | undefined,
+		sameSite: parseSameSite(attrs.samesite),
 		secure: attrs.secure === "true",
 		httpOnly: attrs.httponly === "true",
 		domain: attrs.domain,
-		expires: attrs.expires ? new Date(attrs.expires) : undefined,
-		maxAge: attrs["max-age"] ? Number.parseInt(attrs["max-age"]) : undefined,
+		expires: parseCookieDate(attrs.expires),
+		maxAge: parseCookieMaxAge(attrs["max-age"]),
 	};
 }

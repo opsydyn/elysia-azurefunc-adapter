@@ -1,4 +1,6 @@
 import type {
+	HttpRequest,
+	HttpRequestUser,
 	InvocationContext,
 	RetryContext,
 	TraceContext,
@@ -14,6 +16,12 @@ type AzureLogger = (...args: unknown[]) => void;
 export const AZURE_CONTEXT: unique symbol = Symbol("azure-invocation-context");
 
 /**
+ * Symbol used to attach the raw Azure HttpRequest to the Web Request object.
+ * This preserves Azure-specific request fields that are not part of Fetch.
+ */
+export const AZURE_REQUEST: unique symbol = Symbol("azure-http-request");
+
+/**
  * Symbol used to attach Azure Custom Handler metadata to the Request object.
  * This is used by Bun custom-handler mode where no InvocationContext is available.
  */
@@ -27,6 +35,7 @@ export const AZURE_CUSTOM_HANDLER_CONTEXT: unique symbol = Symbol(
 export interface AzureCustomHandlerContext {
 	kind: "custom-handler";
 	isAzure: boolean;
+	request?: Request;
 	invocationId?: string;
 	functionName?: string;
 	traceContext?: TraceContext;
@@ -44,6 +53,7 @@ export interface AzureCustomHandlerContext {
  */
 export interface AzureCustomHandlerContextInit {
 	isAzure?: boolean;
+	request?: Request;
 	invocationId?: string;
 	functionName?: string;
 	traceContext?: TraceContext;
@@ -61,6 +71,7 @@ export type AzureRuntimeContext = InvocationContext | AzureCustomHandlerContext;
 declare global {
 	interface Request {
 		[AZURE_CONTEXT]?: InvocationContext;
+		[AZURE_REQUEST]?: HttpRequest;
 		[AZURE_CUSTOM_HANDLER_CONTEXT]?: AzureCustomHandlerContext;
 	}
 }
@@ -112,6 +123,7 @@ export const createAzureCustomHandlerContext = (
 	return {
 		kind: "custom-handler",
 		isAzure: init.isAzure ?? isAzureCustomHandlerRequest(request.headers),
+		request: init.request ?? request,
 		invocationId:
 			init.invocationId ??
 			readHeader(request.headers, "x-azure-functions-invocationid"),
@@ -137,6 +149,14 @@ export const attachAzureContext = (
 	return request;
 };
 
+export const attachAzureRequest = (
+	request: Request,
+	azureRequest: HttpRequest,
+): Request => {
+	request[AZURE_REQUEST] = azureRequest;
+	return request;
+};
+
 export const attachAzureCustomHandlerContext = (
 	request: Request,
 	context: AzureCustomHandlerContext,
@@ -152,6 +172,13 @@ export const getAzureContext = (
 	request: Request,
 ): InvocationContext | undefined => {
 	return request[AZURE_CONTEXT];
+};
+
+/**
+ * Retrieves the raw Azure HttpRequest from a Web Request.
+ */
+export const getAzureRequest = (request: Request): HttpRequest | undefined => {
+	return request[AZURE_REQUEST];
 };
 
 /**
@@ -181,3 +208,5 @@ export const isAzureCustomHandlerContext = (
 		context.kind === "custom-handler"
 	);
 };
+
+export type { HttpRequest, HttpRequestUser };

@@ -238,6 +238,7 @@ const app = new Elysia()
       isAzure: azure.isAzure,
       invocationId: azure.invocationId,
       functionName: azure.functionName,
+      azureUser: azure.user?.username,
     };
   });
 ```
@@ -248,6 +249,9 @@ const app = new Elysia()
 | -------- | ---- | ----- |
 | `isAzure` | `boolean` | `true` in Azure Functions, `false` in plain local runs |
 | `raw` | `InvocationContext \| undefined` | Only available in Node worker mode |
+| `request` | `HttpRequest \| Request \| undefined` | Raw runtime request. Node worker mode exposes Azure's `HttpRequest`; Bun mode exposes the Web `Request` |
+| `user` | `HttpRequestUser \| null \| undefined` | Azure App Service / Functions authenticated user. Only available in Node worker mode |
+| `params` | `Record<string, string> \| undefined` | Route parameters resolved by the Azure Functions host. Elysia route params remain available through Elysia's own `params` |
 | `invocationId` | `string \| undefined` | Available in Node worker mode and Bun when Azure forwards the invocation header |
 | `functionName` | `string \| undefined` | Available in Node worker mode; in Bun mode you can provide it via `azureBunServe({ context: { functionName } })` |
 | `triggerMetadata` | `Record<string, unknown> \| undefined` | Only available in Node worker mode unless you provide custom metadata yourself |
@@ -270,9 +274,24 @@ const app = new Elysia()
 ### Node worker only
 
 Use `getAzureContext()` when you explicitly need the raw Azure `InvocationContext`.
+Use `getAzureRequest()` when you need Azure-specific HTTP fields that are not part of the standard Web `Request`, such as authenticated user information or Azure host route parameters.
 
 ```typescript
-import { getAzureContext } from "@opsydyn/elysia-az-functionapp";
+import {
+  getAzureContext,
+  getAzureRequest,
+} from "@opsydyn/elysia-az-functionapp";
+
+const app = new Elysia().get("/example", ({ request }) => {
+  const invocation = getAzureContext(request);
+  const azureRequest = getAzureRequest(request);
+
+  return {
+    invocationId: invocation?.invocationId,
+    user: azureRequest?.user?.username,
+    azureRouteParams: azureRequest?.params,
+  };
+});
 ```
 
 ### Bun custom-handler helpers
@@ -296,10 +315,12 @@ import {
 - `azure()`
 - `azureElysiaHandler(app)`
 - `getAzureContext(request)`
+- `getAzureRequest(request)`
 - `getAzureCustomHandlerContext(request)`
 - `getAzureRuntimeContext(request)`
 - `AzureContext`
 - `AZURE_CONTEXT`
+- `AZURE_REQUEST`
 - `AZURE_CUSTOM_HANDLER_CONTEXT`
 
 ### Bun entrypoint

@@ -1,16 +1,20 @@
 import assert from "node:assert";
 import { describe, it } from "node:test";
+import azureFunctions from "@azure/functions";
 import type { HttpRequest, InvocationContext } from "@azure/functions";
 import { Elysia } from "elysia";
 import {
 	AZURE_CONTEXT,
+	AZURE_REQUEST,
 	azure,
 	azureElysiaHandler,
 	getAzureContext,
+	getAzureRequest,
 } from "../dist/index.mjs";
 import type { AzureContext } from "../dist/index.mjs";
 
 const createApp = () => new Elysia({ sucrose: { gcTime: null } });
+const { HttpRequest: AzureHttpRequest } = azureFunctions;
 
 const drainResponseBody = async (response: { body?: AsyncIterable<unknown> }) => {
 	if (!response.body) return;
@@ -92,11 +96,65 @@ describe("azureElysiaHandler", () => {
 		await drainResponseBody(response);
 	});
 
+	it("should handle the Azure Functions SDK HttpRequest implementation", async () => {
+		const app = createApp()
+			.use(azure())
+			.post("/sdk/:id", ({ body, params, azure }) => ({
+				body,
+				elysiaId: params.id,
+				azureRouteParams: azure.params,
+				rawUrl: azure.request?.url,
+			}));
+		const handler = azureElysiaHandler(app);
+
+		const azureRequest = new AzureHttpRequest({
+			url: "http://localhost/sdk/42?debug=true",
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+			},
+			params: {
+				proxy: "sdk/42",
+			},
+			body: {
+				string: JSON.stringify({ ok: true }),
+			},
+		});
+
+		const response = await handler(
+			azureRequest,
+			asContext({
+				invocationId: "sdk-request",
+				log: () => {},
+			}),
+		);
+
+		assert.strictEqual(response.status, 200);
+		assert.ok(response.body);
+
+		const chunks: Uint8Array[] = [];
+		for await (const chunk of response.body as AsyncIterable<Uint8Array>) {
+			chunks.push(chunk);
+		}
+
+		assert.deepStrictEqual(
+			JSON.parse(new TextDecoder().decode(Buffer.concat(chunks))),
+			{
+				body: { ok: true },
+				elysiaId: "42",
+				azureRouteParams: { proxy: "sdk/42" },
+				rawUrl: "http://localhost/sdk/42?debug=true",
+			},
+		);
+	});
+
 	it("should attach InvocationContext to request", async () => {
 		let capturedContext: InvocationContext | undefined;
+		let capturedRequest: HttpRequest | undefined;
 
 		const app = createApp().get("/context", ({ request }) => {
 			capturedContext = getAzureContext(request);
+			capturedRequest = getAzureRequest(request);
 			return { ok: true };
 		});
 
@@ -106,6 +164,7 @@ describe("azureElysiaHandler", () => {
 			url: "http://localhost/context",
 			method: "GET",
 			headers: new Map(),
+			params: { proxy: "context" },
 		});
 
 		const mockContext = asContext({
@@ -119,6 +178,8 @@ describe("azureElysiaHandler", () => {
 		assert.ok(capturedContext);
 		assert.strictEqual(capturedContext.invocationId, "ctx-789");
 		assert.strictEqual(capturedContext.functionName, "contextTest");
+		assert.strictEqual(capturedRequest, mockRequest);
+		assert.deepStrictEqual(capturedRequest?.params, { proxy: "context" });
 		await drainResponseBody(response);
 	});
 
@@ -169,6 +230,7 @@ describe("azureElysiaHandler", () => {
 		// Cookies should be extracted
 		if (response.cookies) {
 			assert.ok(Array.isArray(response.cookies));
+			assert.ok(!("set-cookie" in (response.headers ?? {})));
 		}
 		await drainResponseBody(response);
 	});
@@ -189,6 +251,14 @@ describe("azure plugin", () => {
 			url: "http://localhost/test",
 			method: "GET",
 			headers: new Map(),
+			params: { proxy: "test" },
+			user: {
+				type: "AppService",
+				id: "user-1",
+				username: "user@example.com",
+				claimsPrincipalData: {},
+				claims: [],
+			},
 		});
 
 		const mockContext = asContext({
@@ -203,6 +273,9 @@ describe("azure plugin", () => {
 		assert.strictEqual(typeof capturedAzureCtx.warn, "function");
 		assert.strictEqual(typeof capturedAzureCtx.error, "function");
 		assert.strictEqual(capturedAzureCtx.isAzure, true);
+		assert.strictEqual(capturedAzureCtx.request, mockRequest);
+		assert.strictEqual(capturedAzureCtx.user?.username, "user@example.com");
+		assert.deepStrictEqual(capturedAzureCtx.params, { proxy: "test" });
 	});
 
 	it("should work without InvocationContext", async () => {
@@ -227,6 +300,7 @@ describe("azure plugin", () => {
 		assert.ok(capturedAzureCtx);
 		assert.strictEqual(capturedAzureCtx?.isAzure, false);
 		assert.strictEqual(capturedAzureCtx?.invocationId, undefined);
+		assert.strictEqual(capturedAzureCtx?.request, mockRequest);
 		await drainResponseBody(response);
 	});
 
@@ -263,6 +337,31 @@ describe("getAzureContext", () => {
 	});
 });
 
+describe("getAzureRequest", () => {
+	it("should retrieve Azure HttpRequest from request", () => {
+		const mockRequest = asRequest({
+			url: "http://localhost/test",
+			method: "GET",
+			headers: new Map(),
+			params: { proxy: "test" },
+		});
+
+		const request = new Request("http://localhost/test");
+		request[AZURE_REQUEST] = mockRequest;
+
+		const retrieved = getAzureRequest(request);
+
+		assert.strictEqual(retrieved, mockRequest);
+		assert.deepStrictEqual(retrieved?.params, { proxy: "test" });
+	});
+
+	it("should return undefined when no Azure HttpRequest is attached", () => {
+		const request = new Request("http://localhost/test");
+
+		assert.strictEqual(getAzureRequest(request), undefined);
+	});
+});
+
 describe("AZURE_CONTEXT symbol", () => {
 	it("should be a unique symbol", () => {
 		assert.strictEqual(typeof AZURE_CONTEXT, "symbol");
@@ -273,5 +372,23 @@ describe("AZURE_CONTEXT symbol", () => {
 		request[AZURE_CONTEXT] = asContext({ invocationId: "test-value" });
 
 		assert.strictEqual(request[AZURE_CONTEXT]?.invocationId, "test-value");
+	});
+});
+
+describe("AZURE_REQUEST symbol", () => {
+	it("should be a unique symbol", () => {
+		assert.strictEqual(typeof AZURE_REQUEST, "symbol");
+	});
+
+	it("should be usable as object key", () => {
+		const request = new Request("http://localhost/test");
+		const mockRequest = asRequest({
+			url: "http://localhost/test",
+			method: "GET",
+			headers: new Map(),
+		});
+		request[AZURE_REQUEST] = mockRequest;
+
+		assert.strictEqual(request[AZURE_REQUEST], mockRequest);
 	});
 });

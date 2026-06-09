@@ -5,7 +5,7 @@ import {
 	headersToObject,
 	cookiesFromHeaders,
 	parseCookieString,
-} from "../dist/index.mjs";
+} from "../src/utils.ts";
 
 describe("Utils", () => {
 	describe("streamToAsyncIterator", () => {

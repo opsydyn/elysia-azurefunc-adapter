@@ -6,6 +6,7 @@
 
 import type {
 	HttpRequest,
+	HttpRequestUser,
 	InvocationContext,
 	RetryContext,
 	TraceContext,
@@ -14,7 +15,9 @@ import type { AnyElysia } from "elysia";
 import { Elysia } from "elysia";
 import {
 	attachAzureContext,
+	attachAzureRequest,
 	getAzureContext as getAzureInvocationContext,
+	getAzureRequest as getAzureHttpRequest,
 	getAzureRuntimeContext,
 	isAzureCustomHandlerContext,
 	type AzureRuntimeContext,
@@ -50,7 +53,7 @@ import { newAzureFunctionsResponse } from "./response";
 export function azureElysiaHandler(app: AnyElysia) {
 	return async (request: HttpRequest, context: InvocationContext) => {
 		const webRequest = newRequestFromAzureFunctions(request);
-		// Attach the invocation context to the request
+		attachAzureRequest(webRequest, request);
 		attachAzureContext(webRequest, context);
 
 		return newAzureFunctionsResponse(await app.handle(webRequest));
@@ -88,6 +91,20 @@ export function getAzureContext(
 }
 
 /**
+ * Retrieves the raw Azure HttpRequest from an Elysia request.
+ *
+ * Use this when you need Azure-specific HTTP fields that are not part of the
+ * standard Web Request, such as App Service auth user information or route
+ * parameters resolved by the Azure Functions host.
+ *
+ * @param request - The Web Request object from Elysia's context
+ * @returns The Azure HttpRequest if running in the Node worker, undefined otherwise
+ */
+export function getAzureRequest(request: Request): HttpRequest | undefined {
+	return getAzureHttpRequest(request);
+}
+
+/**
  * Wrapper class for Azure Functions context with helper methods.
  *
  * Provides a consistent API for accessing Azure Functions context properties
@@ -111,8 +128,12 @@ export class AzureContext {
 	/**
 	 * Creates a new AzureContext wrapper.
 	 * @param ctx - The Azure runtime context, or undefined if not running in Azure
+	 * @param azureRequest - The raw Azure HttpRequest when running in the Node worker
 	 */
-	constructor(private ctx: AzureRuntimeContext | undefined) {}
+	constructor(
+		private ctx: AzureRuntimeContext | undefined,
+		private azureRequest?: HttpRequest,
+	) {}
 
 	private get invocationContext(): InvocationContext | undefined {
 		return isAzureCustomHandlerContext(this.ctx) ? undefined : this.ctx;
@@ -140,6 +161,33 @@ export class AzureContext {
 	 */
 	get raw(): InvocationContext | undefined {
 		return this.invocationContext;
+	}
+
+	/**
+	 * The raw runtime HTTP request.
+	 *
+	 * In Node worker mode this is Azure's `HttpRequest`, which includes
+	 * Azure-specific fields such as `params` and `user`. In Bun custom-handler
+	 * mode this is the standard Web `Request`.
+	 */
+	get request(): HttpRequest | Request | undefined {
+		return this.azureRequest ?? this.customHandlerContext?.request;
+	}
+
+	/**
+	 * Authenticated user information populated by Azure App Service / Functions
+	 * authentication. Only available in Node worker mode.
+	 */
+	get user(): HttpRequestUser | null | undefined {
+		return this.azureRequest?.user;
+	}
+
+	/**
+	 * Route parameters resolved by the Azure Functions host. Elysia route params
+	 * remain available separately through Elysia's own `params` context.
+	 */
+	get params(): Record<string, string> | undefined {
+		return this.azureRequest?.params;
 	}
 
 	/**
@@ -349,13 +397,17 @@ export const azure = (config?: AzurePluginConfig) => {
 			gcTime: null,
 		},
 	}).derive({ as: "scoped" }, ({ request }) => ({
-		azure: new AzureContext(getAzureRuntimeContext(request)),
+		azure: new AzureContext(
+			getAzureRuntimeContext(request),
+			getAzureHttpRequest(request),
+		),
 	}));
 };
 
 export {
 	AZURE_CONTEXT,
 	AZURE_CUSTOM_HANDLER_CONTEXT,
+	AZURE_REQUEST,
 	createAzureCustomHandlerContext,
 	getAzureCustomHandlerContext,
 	getAzureRuntimeContext,
@@ -363,16 +415,10 @@ export {
 
 export type { AzureCustomHandlerContext, AzureRuntimeContext } from "./context";
 
-// Re-export utilities for testing
-export {
-	streamToAsyncIterator,
-	headersToObject,
-	cookiesFromHeaders,
-	parseCookieString,
-} from "./utils";
-
 // Re-export types for convenience
 export type {
+	HttpRequest,
+	HttpRequestUser,
 	InvocationContext,
 	RetryContext,
 	TraceContext,

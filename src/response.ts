@@ -11,6 +11,14 @@ export const newAzureFunctionsResponse = (
 	const headers = headersToObject(response.headers);
 	const cookies = cookiesFromHeaders(response.headers);
 
+	if (cookies) {
+		for (const key of Object.keys(headers)) {
+			if (key.toLowerCase() === "set-cookie") {
+				delete headers[key];
+			}
+		}
+	}
+
 	return {
 		cookies,
 		headers,
