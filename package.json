@@ -1,6 +1,6 @@
 {
   "name": "@opsydyn/elysia-az-functionapp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Azure Functions adapter for Elysia with Node worker and Bun custom-handler support.",
   "author": "Alan Currie",
   "license": "MIT",
