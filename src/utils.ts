@@ -48,6 +48,19 @@ function parseSameSite(value: string | undefined) {
 	}
 }
 
+const textEncoder = new TextEncoder();
+
+function normalizeStreamChunk(value: unknown): Uint8Array {
+	if (value instanceof Uint8Array) return value;
+	if (typeof value === "string") return textEncoder.encode(value);
+	if (value instanceof ArrayBuffer) return new Uint8Array(value);
+	if (ArrayBuffer.isView(value)) {
+		return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+	}
+
+	return textEncoder.encode(String(value));
+}
+
 export const streamToAsyncIterator = (readable: Response["body"]) => {
 	if (readable == null) return null;
 	const reader = readable.getReader();
@@ -65,9 +78,13 @@ export const streamToAsyncIterator = (readable: Response["body"]) => {
 
 			if (result.done) {
 				release();
+				return result;
 			}
 
-			return result;
+			return {
+				done: false,
+				value: normalizeStreamChunk(result.value),
+			};
 		},
 		async return() {
 			release();

@@ -2,7 +2,7 @@ import assert from "node:assert";
 import { describe, it } from "node:test";
 import azureFunctions from "@azure/functions";
 import type { HttpRequest, InvocationContext } from "@azure/functions";
-import { Elysia } from "elysia";
+import { Elysia, sse } from "elysia";
 import {
 	AZURE_CONTEXT,
 	AZURE_REQUEST,
@@ -21,6 +21,19 @@ const drainResponseBody = async (response: { body?: AsyncIterable<unknown> }) =>
 	for await (const _ of response.body) {
 		// drain
 	}
+};
+
+const readResponseBodyText = async (response: {
+	body?: AsyncIterable<Uint8Array> | null;
+}) => {
+	const chunks: Uint8Array[] = [];
+	if (!response.body) return "";
+
+	for await (const chunk of response.body) {
+		chunks.push(chunk);
+	}
+
+	return new TextDecoder().decode(Buffer.concat(chunks));
 };
 
 /** Helper to cast partial mock objects to HttpRequest */
@@ -233,6 +246,66 @@ describe("azureElysiaHandler", () => {
 			assert.ok(!("set-cookie" in (response.headers ?? {})));
 		}
 		await drainResponseBody(response);
+	});
+
+	it("should preserve streamed response chunks as Azure streaming body chunks", async () => {
+		const app = createApp().get(
+			"/stream",
+			() =>
+				new Response(
+					new ReadableStream({
+						start(controller) {
+							controller.enqueue(new TextEncoder().encode("alpha"));
+							controller.enqueue(new TextEncoder().encode("beta"));
+							controller.close();
+						},
+					}),
+					{
+						headers: {
+							"content-type": "text/plain",
+						},
+					},
+				),
+		);
+		const handler = azureElysiaHandler(app);
+
+		const response = await handler(
+			asRequest({
+				url: "http://localhost/stream",
+				method: "GET",
+				headers: new Map(),
+			}),
+			asContext({ log: () => {} }),
+		);
+
+		assert.strictEqual(response.status, 200);
+		assert.strictEqual(response.headers?.["content-type"], "text/plain");
+		assert.strictEqual(await readResponseBodyText(response), "alphabeta");
+	});
+
+	it("should preserve Elysia SSE responses for Azure HTTP streaming", async () => {
+		const app = createApp().get("/events", function* () {
+			yield sse("hello");
+			yield sse("world");
+		});
+		const handler = azureElysiaHandler(app);
+
+		const response = await handler(
+			asRequest({
+				url: "http://localhost/events",
+				method: "GET",
+				headers: new Map([["accept", "text/event-stream"]]),
+			}),
+			asContext({ log: () => {} }),
+		);
+
+		assert.strictEqual(response.status, 200);
+		assert.strictEqual(response.headers?.["content-type"], "text/event-stream");
+		assert.strictEqual(response.headers?.["cache-control"], "no-cache");
+
+		const body = await readResponseBodyText(response);
+		assert.match(body, /data: hello\n\n/);
+		assert.match(body, /data: world\n\n/);
 	});
 });
 

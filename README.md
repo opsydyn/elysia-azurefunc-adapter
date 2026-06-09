@@ -9,12 +9,14 @@
 Azure Functions adapter for [Elysia](https://elysiajs.com/) with support for:
 
 - the Azure Functions **Node.js worker** model via `azureElysiaHandler()`
+- **streaming responses and Server-Sent Events (SSE)** in Node worker mode
 - **Bun custom handlers** via `@opsydyn/elysia-az-functionapp/bun`
 
 ## Requirements
 
 - **Elysia**: 1.0.0 or higher
 - **Azure Functions**: V4 programming model
+- **@azure/functions**: 4.3.0 or higher for HTTP streaming, 4.9.0 or higher for Azure MCP bindings
 - **Node.js**: 22.x or higher for the package toolchain and Node worker mode
 - **Bun**: 1.0+ for Bun custom-handler mode
 
@@ -72,6 +74,10 @@ export default app;
 import { app } from "@azure/functions";
 import { azureElysiaHandler } from "@opsydyn/elysia-az-functionapp";
 import elysiaApp from "../app";
+
+app.setup({
+  enableHttpStream: true,
+});
 
 app.http("httpTrigger", {
   methods: ["GET", "POST", "DELETE", "HEAD", "PATCH", "PUT", "OPTIONS", "TRACE", "CONNECT"],
@@ -243,6 +249,66 @@ const app = new Elysia()
   });
 ```
 
+## Streaming and SSE
+
+`azureElysiaHandler()` preserves Elysia response bodies as Azure Functions HTTP streaming bodies. This covers routes that return `ReadableStream`, generator responses, async generator responses, and Elysia's `sse()` helper.
+
+Enable HTTP streaming once in your Azure Functions entrypoint:
+
+```typescript
+import { app } from "@azure/functions";
+
+app.setup({
+  enableHttpStream: true,
+});
+```
+
+Azure HTTP streaming requires the Azure Functions Node v4 model, Azure Functions runtime 4.28 or later, Azure Functions Core Tools 4.0.5530 or later for local development, and `@azure/functions` 4.3.0 or later.
+
+### Plain streamed responses
+
+```typescript
+import { Elysia } from "elysia";
+
+const encoder = new TextEncoder();
+
+export const app = new Elysia().get("/stream", () => {
+  return new Response(
+    new ReadableStream({
+      async start(controller) {
+        controller.enqueue(encoder.encode("first\n"));
+        controller.enqueue(encoder.encode("second\n"));
+        controller.close();
+      },
+    }),
+    {
+      headers: {
+        "content-type": "text/plain",
+      },
+    },
+  );
+});
+```
+
+### Server-Sent Events
+
+```typescript
+import { Elysia, sse } from "elysia";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const app = new Elysia().get("/events", async function* () {
+  yield sse("ready");
+
+  for (let index = 0; index < 3; index += 1) {
+    yield sse(`tick ${index}`);
+    await sleep(1000);
+  }
+});
+```
+
+When routing SSE through Azure API Management, disable response buffering and avoid policies that read or buffer the response body. APIM's Consumption tier is not recommended for long-running SSE connections.
+
 ### AzureContext properties
 
 | Property | Type | Notes |
@@ -335,13 +401,13 @@ import {
 - Azure Functions does not expose an interruption signal for HTTP requests in the Node worker model.
 - Bun support uses **Azure Custom Handlers**, so Azure host configuration is still required.
 - Bun mode is currently focused on **HTTP-triggered** applications.
+- Native Elysia WebSocket routes are not supported by the Node worker adapter because Azure Functions HTTP triggers do not expose the raw upgrade socket. Use Azure Web PubSub or Azure SignalR Service for production bidirectional realtime messaging.
 - Azure Custom Handlers must start within 60 seconds.
 - Bun deployments with platform-specific binaries should be built for the target OS or shipped in a custom container.
 
 ## Untested scenarios
 
-- SSE (Server-Sent Events / streaming responses)
-- WebSockets
+- End-to-end Azure Functions host streaming smoke tests under Core Tools and deployed Azure infrastructure.
 
 ## Contributing
 
