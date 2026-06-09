@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0
+
+### Minor Changes
+
+- 4cc10ea: Add first-class Bun custom-handler support via the `@opsydyn/elysia-az-functionapp/bun` subpath, unify Azure request context handling across Node worker and Bun runtimes, preserve the raw Azure `HttpRequest` for auth user and route metadata access, remove duplicate `set-cookie` response headers when using Azure's cookie output, rename the package to `@opsydyn/elysia-az-functionapp`, and fix cookie parsing to preserve cookie-name casing.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
