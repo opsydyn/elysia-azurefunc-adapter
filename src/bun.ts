@@ -6,6 +6,7 @@ import {
 	getAzureCustomHandlerContext,
 	type AzureCustomHandlerContext,
 	type AzureCustomHandlerContextInit,
+	type AzureLogger,
 } from "./context";
 
 export interface BunServer {
@@ -92,4 +93,8 @@ export function azureBunServe(
 }
 
 export { AZURE_CUSTOM_HANDLER_CONTEXT, getAzureCustomHandlerContext };
-export type { AzureCustomHandlerContext, AzureCustomHandlerContextInit };
+export type {
+	AzureCustomHandlerContext,
+	AzureCustomHandlerContextInit,
+	AzureLogger,
+};

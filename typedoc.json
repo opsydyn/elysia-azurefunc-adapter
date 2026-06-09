@@ -1,0 +1,17 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/index.ts",
+    "src/bun.ts"
+  ],
+  "out": "docs/api",
+  "cleanOutputDir": true,
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "hideGenerator": true,
+  "includeVersion": true,
+  "readme": "none",
+  "treatWarningsAsErrors": true,
+  "treatValidationWarningsAsErrors": true
+}

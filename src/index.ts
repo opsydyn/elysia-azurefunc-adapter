@@ -22,8 +22,16 @@ import {
 	isAzureCustomHandlerContext,
 	type AzureRuntimeContext,
 } from "./context";
-import { newRequestFromAzureFunctions } from "./request";
+import {
+	newRequestFromAzureFunctions,
+	type AzureRequestTransformOptions,
+} from "./request";
 import { newAzureFunctionsResponse } from "./response";
+
+/**
+ * Options for {@link azureElysiaHandler}.
+ */
+export interface AzureElysiaHandlerOptions extends AzureRequestTransformOptions {}
 
 /**
  * Creates an Azure Functions HTTP handler from an Elysia application.
@@ -33,6 +41,7 @@ import { newAzureFunctionsResponse } from "./response";
  * through Elysia, and converts the response back to Azure's format.
  *
  * @param app - The Elysia application instance to handle requests
+ * @param options - Optional production behavior switches
  * @returns An Azure Functions HTTP handler function
  *
  * @example
@@ -50,9 +59,12 @@ import { newAzureFunctionsResponse } from "./response";
  * })
  * ```
  */
-export function azureElysiaHandler(app: AnyElysia) {
+export function azureElysiaHandler(
+	app: AnyElysia,
+	options: AzureElysiaHandlerOptions = {},
+) {
 	return async (request: HttpRequest, context: InvocationContext) => {
-		const webRequest = newRequestFromAzureFunctions(request);
+		const webRequest = newRequestFromAzureFunctions(request, options);
 		attachAzureRequest(webRequest, request);
 		attachAzureContext(webRequest, context);
 
@@ -413,7 +425,12 @@ export {
 	getAzureRuntimeContext,
 } from "./context";
 
-export type { AzureCustomHandlerContext, AzureRuntimeContext } from "./context";
+export type {
+	AzureCustomHandlerContext,
+	AzureCustomHandlerContextInit,
+	AzureLogger,
+	AzureRuntimeContext,
+} from "./context";
 
 // Re-export types for convenience
 export type {

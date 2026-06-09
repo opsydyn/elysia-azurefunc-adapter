@@ -87,6 +87,21 @@ app.http("httpTrigger", {
 });
 ```
 
+If your Function App sits behind trusted infrastructure that rewrites the public origin, such as Azure API Management, Azure Front Door, App Service platform proxying, or a custom reverse proxy, opt in to forwarded URL reconstruction:
+
+```typescript
+app.http("httpTrigger", {
+  methods: ["GET", "POST", "DELETE", "HEAD", "PATCH", "PUT", "OPTIONS"],
+  authLevel: "anonymous",
+  route: "{*proxy}",
+  handler: azureElysiaHandler(elysiaApp, {
+    trustForwardedHeaders: true,
+  }),
+});
+```
+
+Only enable `trustForwardedHeaders` when those headers are supplied by infrastructure you control. When enabled, the adapter trusts `x-forwarded-proto`, `x-forwarded-host`, and the standard `Forwarded` header to reconstruct `request.url` before Elysia handles the request.
+
 ### 3. Configure Azure Functions
 
 `host.json`
@@ -379,12 +394,13 @@ import {
 ### Root entrypoint
 
 - `azure()`
-- `azureElysiaHandler(app)`
+- `azureElysiaHandler(app, options?)`
 - `getAzureContext(request)`
 - `getAzureRequest(request)`
 - `getAzureCustomHandlerContext(request)`
 - `getAzureRuntimeContext(request)`
 - `AzureContext`
+- `AzureElysiaHandlerOptions`
 - `AZURE_CONTEXT`
 - `AZURE_REQUEST`
 - `AZURE_CUSTOM_HANDLER_CONTEXT`
@@ -395,6 +411,22 @@ import {
 - `azureBunFetch(app, context?)`
 - `createAzureBunServeOptions(app, config?)`
 - `getAzureCustomHandlerPort()`
+
+Generate the full TypeDoc API reference locally with:
+
+```bash
+npm run docs:api
+```
+
+## Production checklist
+
+- Enable `app.setup({ enableHttpStream: true })` before registering HTTP triggers that use streams or SSE.
+- Use `trustForwardedHeaders: true` only behind trusted Azure or reverse-proxy infrastructure.
+- Keep `routePrefix` aligned with your Elysia routes. Most catch-all Elysia apps should use `"routePrefix": ""` and `route: "{*proxy}"`.
+- Use Azure App Service / Functions authentication, APIM, Easy Auth, or your own Elysia auth plugin for protected routes. This adapter exposes Azure auth metadata but does not enforce auth policies by itself.
+- For long-running SSE, disable response buffering in APIM and avoid policies that read the response body.
+- For Bun custom handlers, deploy with a Linux-compatible Bun binary or a custom container.
+- Run `npm run build`, `npm test`, `npm run lint`, `npm run docs:api:check`, `npm run size`, and `npm run pack:dry-run` before publishing.
 
 ## Limitations
 

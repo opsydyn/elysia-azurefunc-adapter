@@ -30,8 +30,20 @@ jobs:
       - name: Type Check
         run: npx tsc --noEmit
 
+      - name: API Docs Check
+        run: npm run docs:api:check
+
       - name: Run Tests
         run: npm test
 
       - name: Lint
         run: npm run lint
+
+      - name: Size Limit
+        run: npm run size
+
+      - name: Pack Dry Run
+        run: npm run pack:dry-run
+
+      - name: Production Dependency Audit
+        run: npm audit --omit=dev

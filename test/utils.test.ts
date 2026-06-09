@@ -42,6 +42,29 @@ describe("Utils", () => {
 			const result = streamToAsyncIterator(undefined as unknown as null);
 			assert.strictEqual(result, null);
 		});
+
+		it("should cancel the source stream when iteration ends early", async () => {
+			let wasCancelled = false;
+			const stream = new ReadableStream({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode("first"));
+				},
+				cancel() {
+					wasCancelled = true;
+				},
+			});
+
+			const iterator = streamToAsyncIterator(stream);
+			assert.ok(iterator);
+
+			assert.deepStrictEqual(await iterator.next(), {
+				done: false,
+				value: new TextEncoder().encode("first"),
+			});
+			await iterator.return();
+
+			assert.strictEqual(wasCancelled, true);
+		});
 	});
 
 	describe("headersToObject", () => {

@@ -161,6 +161,78 @@ describe("azureElysiaHandler", () => {
 		);
 	});
 
+	it("should keep the Azure request URL by default when forwarded headers are present", async () => {
+		const app = createApp().get("/url", ({ request }) => ({
+			url: request.url,
+		}));
+		const handler = azureElysiaHandler(app);
+
+		const response = await handler(
+			asRequest({
+				url: "http://internal.azurewebsites.net/url?debug=true",
+				method: "GET",
+				headers: new Map([
+					["x-forwarded-proto", "https"],
+					["x-forwarded-host", "api.example.com"],
+				]),
+			}),
+			asContext({ log: () => {} }),
+		);
+
+		assert.deepStrictEqual(await readResponseBodyText(response).then(JSON.parse), {
+			url: "http://internal.azurewebsites.net/url?debug=true",
+		});
+	});
+
+	it("should reconstruct request URLs from trusted forwarded headers when enabled", async () => {
+		const app = createApp().get("/url", ({ request }) => ({
+			url: request.url,
+		}));
+		const handler = azureElysiaHandler(app, {
+			trustForwardedHeaders: true,
+		});
+
+		const response = await handler(
+			asRequest({
+				url: "http://internal.azurewebsites.net/url?debug=true",
+				method: "GET",
+				headers: new Map([
+					["x-forwarded-proto", "https"],
+					["x-forwarded-host", "api.example.com"],
+				]),
+			}),
+			asContext({ log: () => {} }),
+		);
+
+		assert.deepStrictEqual(await readResponseBodyText(response).then(JSON.parse), {
+			url: "https://api.example.com/url?debug=true",
+		});
+	});
+
+	it("should reconstruct request URLs from standard Forwarded headers when enabled", async () => {
+		const app = createApp().get("/forwarded", ({ request }) => ({
+			url: request.url,
+		}));
+		const handler = azureElysiaHandler(app, {
+			trustForwardedHeaders: true,
+		});
+
+		const response = await handler(
+			asRequest({
+				url: "http://internal.azurewebsites.net/forwarded",
+				method: "GET",
+				headers: new Map([
+					["forwarded", 'for=192.0.2.60;proto=https;host="edge.example.com"'],
+				]),
+			}),
+			asContext({ log: () => {} }),
+		);
+
+		assert.deepStrictEqual(await readResponseBodyText(response).then(JSON.parse), {
+			url: "https://edge.example.com/forwarded",
+		});
+	});
+
 	it("should attach InvocationContext to request", async () => {
 		let capturedContext: InvocationContext | undefined;
 		let capturedRequest: HttpRequest | undefined;

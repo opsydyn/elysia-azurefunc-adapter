@@ -7,7 +7,7 @@ import type {
 	TriggerMetadata,
 } from "@azure/functions";
 
-type AzureLogger = (...args: unknown[]) => void;
+export type AzureLogger = (...args: unknown[]) => void;
 
 /**
  * Symbol used to attach the Azure InvocationContext to the Request object.

@@ -29,6 +29,7 @@ jspm_packages/
 # TypeScript output
 dist
 out
+docs/api
 
 # Azure Functions artifacts
 bin

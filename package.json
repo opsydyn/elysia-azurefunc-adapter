@@ -14,7 +14,7 @@
   "homepage": "https://github.com/opsydyn/elysia-azurefunc-adapter#readme",
   "funding": {
     "type": "github",
-    "url": "https://github.com/sponsors/alanpcurrie"
+    "url": "https://github.com/sponsors/opsydyn"
   },
   "keywords": [
     "elysia",
@@ -72,11 +72,14 @@
     "typecheck": "tsc --noEmit",
     "prelint": "npm run build",
     "lint": "publint && attw --pack .",
+    "docs:api": "typedoc",
+    "docs:api:check": "typedoc --emit none",
     "changeset": "changeset",
-    "version": "changeset version",
+    "version": "changeset version && node scripts/sync-jsr-version.mjs",
     "release": "npm run build && npm run lint && npm test && changeset publish",
     "prepublishOnly": "npm run build",
     "pretest": "npm run build",
+    "pack:dry-run": "npm pack --dry-run",
     "size": "size-limit",
     "test": "node --test --experimental-strip-types --experimental-test-coverage test/**/*.test.ts",
     "test:watch": "node --test --experimental-strip-types --watch test/**/*.test.ts"
@@ -92,6 +95,7 @@
     "publint": "^0.3.21",
     "size-limit": "^12.1.0",
     "tsdown": "^0.22.1",
+    "typedoc": "^0.28.19",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {

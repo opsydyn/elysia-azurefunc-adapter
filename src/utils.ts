@@ -87,7 +87,24 @@ export const streamToAsyncIterator = (readable: Response["body"]) => {
 			};
 		},
 		async return() {
-			release();
+			try {
+				await reader.cancel();
+			} finally {
+				release();
+			}
+
+			return {
+				done: true,
+				value: undefined,
+			};
+		},
+		async throw(error) {
+			try {
+				await reader.cancel(error);
+			} finally {
+				release();
+			}
+
 			return {
 				done: true,
 				value: undefined,
