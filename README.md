@@ -38,6 +38,10 @@ bun add @opsydyn/elysia-az-functionapp elysia bun
 
 If you want a runnable starter instead of assembling Azure's custom-handler files by hand, see [`examples/bun-custom-handler`](./examples/bun-custom-handler).
 
+## Roadmap
+
+See [ROADMAP.md](./ROADMAP.md) for the v2 toolkit plan, including APIM affordances, Easy Auth helpers, MCP support, Azure serverless agents, observability, scaffolding, and package hardening.
+
 ## Node worker quick start
 
 ### 1. Create your Elysia app
@@ -426,7 +430,7 @@ npm run docs:api
 - Use Azure App Service / Functions authentication, APIM, Easy Auth, or your own Elysia auth plugin for protected routes. This adapter exposes Azure auth metadata but does not enforce auth policies by itself.
 - For long-running SSE, disable response buffering in APIM and avoid policies that read the response body.
 - For Bun custom handlers, deploy with a Linux-compatible Bun binary or a custom container.
-- Run `npm run build`, `npm test`, `npm run lint`, `npm run docs:api:check`, `npm run size`, and `npm run pack:dry-run` before publishing.
+- Run `npm run build`, `npm test`, `npm run lint`, `npm run lint:biome`, `npm run lint:knip`, `npm run docs:api:check`, `npm run size`, and `npm run pack:dry-run` before publishing.
 
 ## Limitations
 

@@ -30,7 +30,7 @@
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.18.0"
   },
   "type": "module",
   "main": "./dist/index.cjs",
@@ -63,6 +63,7 @@
     "bun",
     "dist",
     "README.md",
+    "ROADMAP.md",
     "LICENSE",
     "CHANGELOG.md"
   ],
@@ -72,6 +73,9 @@
     "typecheck": "tsc --noEmit",
     "prelint": "npm run build",
     "lint": "publint && attw --pack .",
+    "lint:biome": "biome lint .",
+    "lint:knip": "knip",
+    "lint:all": "npm run lint && npm run lint:biome && npm run lint:knip",
     "docs:api": "typedoc",
     "docs:api:check": "typedoc --emit none",
     "changeset": "changeset",
@@ -87,11 +91,13 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.3",
     "@azure/functions": "^4.16.0",
+    "@biomejs/biome": "^2.4.16",
     "@changesets/cli": "^2.31.0",
     "@size-limit/preset-small-lib": "^12.1.0",
     "@types/node": "^25.9.1",
     "elysia": "1.4.28",
     "fast-check": "^4.8.0",
+    "knip": "^6.16.1",
     "publint": "^0.3.21",
     "size-limit": "^12.1.0",
     "tsdown": "^0.22.1",

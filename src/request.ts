@@ -48,11 +48,16 @@ function safeForwardedProtocol(value: string | undefined): string | undefined {
 }
 
 function isPotentialHost(value: string | undefined): value is string {
-	return (
-		value !== undefined &&
-		value.length > 0 &&
-		!/[/?#\\\s\0-\x1F\x7F]/.test(value)
-	);
+	if (value === undefined || value.length === 0 || /[/?#\\\s]/.test(value)) {
+		return false;
+	}
+
+	for (const character of value) {
+		const code = character.charCodeAt(0);
+		if (code <= 31 || code === 127) return false;
+	}
+
+	return true;
 }
 
 function forwardedUrl(rawUrl: string, headers: Headers): string {

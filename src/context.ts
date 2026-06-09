@@ -1,6 +1,5 @@
 import type {
 	HttpRequest,
-	HttpRequestUser,
 	InvocationContext,
 	RetryContext,
 	TraceContext,
@@ -208,5 +207,3 @@ export const isAzureCustomHandlerContext = (
 		context.kind === "custom-handler"
 	);
 };
-
-export type { HttpRequest, HttpRequestUser };

@@ -30,6 +30,12 @@ jobs:
       - name: Type Check
         run: npx tsc --noEmit
 
+      - name: Biome Lint
+        run: npm run lint:biome
+
+      - name: Knip
+        run: npm run lint:knip
+
       - name: API Docs Check
         run: npm run docs:api:check
 
