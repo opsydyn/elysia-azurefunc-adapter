@@ -6,12 +6,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alanpcurrie/elysia-azurefunc-adapter.git"
+    "url": "https://github.com/opsydyn/elysia-azurefunc-adapter"
   },
   "bugs": {
-    "url": "https://github.com/alanpcurrie/elysia-azurefunc-adapter/issues"
+    "url": "https://github.com/opsydyn/elysia-azurefunc-adapter/issues"
   },
-  "homepage": "https://github.com/alanpcurrie/elysia-azurefunc-adapter#readme",
+  "homepage": "https://github.com/opsydyn/elysia-azurefunc-adapter#readme",
   "funding": {
     "type": "github",
     "url": "https://github.com/sponsors/alanpcurrie"
