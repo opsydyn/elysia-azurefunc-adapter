@@ -1,14 +1,45 @@
 import type { Cookie } from "@azure/functions";
 
+function splitCookiePart(part: string): [string, string | undefined] {
+	const separatorIndex = part.indexOf("=");
+
+	if (separatorIndex === -1) {
+		return [part.trim(), undefined];
+	}
+
+	return [
+		part.slice(0, separatorIndex).trim(),
+		part.slice(separatorIndex + 1).trim(),
+	];
+}
+
 export const streamToAsyncIterator = (readable: Response["body"]) => {
 	if (readable == null) return null;
 	const reader = readable.getReader();
+	let released = false;
+
+	const release = () => {
+		if (released) return;
+		released = true;
+		reader.releaseLock();
+	};
+
 	return {
-		next() {
-			return reader.read();
+		async next() {
+			const result = await reader.read();
+
+			if (result.done) {
+				release();
+			}
+
+			return result;
 		},
-		return() {
-			return reader.releaseLock();
+		async return() {
+			release();
+			return {
+				done: true,
+				value: undefined,
+			};
 		},
 		[Symbol.asyncIterator]() {
 			return this;
@@ -36,12 +67,14 @@ export function cookiesFromHeaders(headers: Headers): Cookie[] | undefined {
 }
 
 export function parseCookieString(cookieString: string): Cookie {
-	const [[name, encodedValue], ...attributesArray] = cookieString
-		.split(";")
-		.map((x) => x.split("="))
-		.map(([key, value]) => [key.trim().toLowerCase(), value ?? "true"]);
-
-	const attrs: Record<string, string> = Object.fromEntries(attributesArray);
+	const [nameValue, ...attributeValues] = cookieString.split(";");
+	const [name, encodedValue = ""] = splitCookiePart(nameValue);
+	const attrs: Record<string, string> = Object.fromEntries(
+		attributeValues.map((attribute) => {
+			const [key, value] = splitCookiePart(attribute);
+			return [key.toLowerCase(), value ?? "true"];
+		}),
+	);
 
 	return {
 		name,

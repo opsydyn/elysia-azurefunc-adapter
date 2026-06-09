@@ -1,0 +1,13 @@
+{
+  "name": "bun-custom-handler-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "func start",
+    "start": "bun run src/bun.ts"
+  },
+  "dependencies": {
+    "bun": "^1.3.14",
+    "elysia": "1.4.28"
+  }
+}

@@ -1,35 +1,26 @@
 /**
- * @module elysia-azurefunc-adapter
- * @description Azure Functions V4 adapter for Elysia. Run Elysia on Azure Functions.
+ * @module @opsydyn/elysia-az-functionapp
+ * @description Azure Functions adapter for Elysia with support for the Node.js worker model and Bun custom handlers.
  * @license MIT
  */
 
-import type { HttpRequest, InvocationContext } from "@azure/functions";
+import type {
+	HttpRequest,
+	InvocationContext,
+	RetryContext,
+	TraceContext,
+} from "@azure/functions";
 import type { AnyElysia } from "elysia";
 import { Elysia } from "elysia";
+import {
+	attachAzureContext,
+	getAzureContext as getAzureInvocationContext,
+	getAzureRuntimeContext,
+	isAzureCustomHandlerContext,
+	type AzureRuntimeContext,
+} from "./context";
 import { newRequestFromAzureFunctions } from "./request";
 import { newAzureFunctionsResponse } from "./response";
-
-/**
- * Symbol used to attach the Azure InvocationContext to the Request object.
- * This allows the context to be passed through Elysia's request handling pipeline.
- *
- * @example
- * ```typescript
- * import { AZURE_CONTEXT } from 'elysia-azurefunc-adapter'
- *
- * // Access the raw context (advanced usage)
- * const context = request[AZURE_CONTEXT]
- * ```
- */
-export const AZURE_CONTEXT: unique symbol = Symbol("azure-invocation-context");
-
-// Extend the Request type to include Azure context
-declare global {
-	interface Request {
-		[AZURE_CONTEXT]?: InvocationContext;
-	}
-}
 
 /**
  * Creates an Azure Functions HTTP handler from an Elysia application.
@@ -45,7 +36,7 @@ declare global {
  * ```typescript
  * // src/functions/httpTrigger.ts
  * import { app } from '@azure/functions'
- * import { azureElysiaHandler } from 'elysia-azurefunc-adapter'
+ * import { azureElysiaHandler } from '@opsydyn/elysia-az-functionapp'
  * import elysiaApp from '../app'
  *
  * app.http('httpTrigger', {
@@ -60,7 +51,7 @@ export function azureElysiaHandler(app: AnyElysia) {
 	return async (request: HttpRequest, context: InvocationContext) => {
 		const webRequest = newRequestFromAzureFunctions(request);
 		// Attach the invocation context to the request
-		webRequest[AZURE_CONTEXT] = context;
+		attachAzureContext(webRequest, context);
 
 		return newAzureFunctionsResponse(await app.handle(webRequest));
 	};
@@ -78,7 +69,7 @@ export function azureElysiaHandler(app: AnyElysia) {
  * @example
  * ```typescript
  * import { Elysia } from 'elysia'
- * import { getAzureContext } from 'elysia-azurefunc-adapter'
+ * import { getAzureContext } from '@opsydyn/elysia-az-functionapp'
  *
  * const app = new Elysia()
  *   .get('/api/hello', ({ request }) => {
@@ -93,15 +84,15 @@ export function azureElysiaHandler(app: AnyElysia) {
 export function getAzureContext(
 	request: Request,
 ): InvocationContext | undefined {
-	return request[AZURE_CONTEXT];
+	return getAzureInvocationContext(request);
 }
 
 /**
- * Wrapper class for Azure Functions InvocationContext with helper methods.
+ * Wrapper class for Azure Functions context with helper methods.
  *
  * Provides a consistent API for accessing Azure Functions context properties
- * and logging methods, with automatic fallback to console methods when running
- * outside of Azure Functions (e.g., local development).
+ * and logging methods across both the Node.js worker model and Bun custom handlers,
+ * with automatic fallback to console methods when running locally.
  *
  * @example
  * ```typescript
@@ -119,24 +110,36 @@ export function getAzureContext(
 export class AzureContext {
 	/**
 	 * Creates a new AzureContext wrapper.
-	 * @param ctx - The Azure InvocationContext, or undefined if not running in Azure
+	 * @param ctx - The Azure runtime context, or undefined if not running in Azure
 	 */
-	constructor(private ctx: InvocationContext | undefined) {}
+	constructor(private ctx: AzureRuntimeContext | undefined) {}
+
+	private get invocationContext(): InvocationContext | undefined {
+		return isAzureCustomHandlerContext(this.ctx) ? undefined : this.ctx;
+	}
+
+	private get customHandlerContext() {
+		return isAzureCustomHandlerContext(this.ctx) ? this.ctx : undefined;
+	}
 
 	/**
 	 * Whether the application is currently running in Azure Functions.
 	 * @returns `true` if running in Azure Functions, `false` otherwise
 	 */
 	get isAzure(): boolean {
-		return this.ctx !== undefined;
+		return (
+			this.customHandlerContext?.isAzure ?? this.invocationContext !== undefined
+		);
 	}
 
 	/**
 	 * The raw Azure InvocationContext for advanced usage.
-	 * @returns The InvocationContext if running in Azure, undefined otherwise
+	 * Returns `undefined` in Bun custom handler mode because Azure does not expose
+	 * InvocationContext to custom handlers.
+	 * @returns The InvocationContext if running in the Node.js worker, undefined otherwise
 	 */
 	get raw(): InvocationContext | undefined {
-		return this.ctx;
+		return this.invocationContext;
 	}
 
 	/**
@@ -145,7 +148,10 @@ export class AzureContext {
 	 * @returns The invocation ID string, or undefined if not in Azure
 	 */
 	get invocationId(): string | undefined {
-		return this.ctx?.invocationId;
+		return (
+			this.customHandlerContext?.invocationId ??
+			this.invocationContext?.invocationId
+		);
 	}
 
 	/**
@@ -153,7 +159,10 @@ export class AzureContext {
 	 * @returns The function name, or undefined if not in Azure
 	 */
 	get functionName(): string | undefined {
-		return this.ctx?.functionName;
+		return (
+			this.customHandlerContext?.functionName ??
+			this.invocationContext?.functionName
+		);
 	}
 
 	/**
@@ -162,7 +171,10 @@ export class AzureContext {
 	 * @returns Trigger metadata object, or undefined if not in Azure
 	 */
 	get triggerMetadata(): Record<string, unknown> | undefined {
-		return this.ctx?.triggerMetadata;
+		return (
+			this.customHandlerContext?.triggerMetadata ??
+			this.invocationContext?.triggerMetadata
+		);
 	}
 
 	/**
@@ -170,16 +182,22 @@ export class AzureContext {
 	 * Use this for correlating requests across services.
 	 * @returns The TraceContext, or undefined if not in Azure
 	 */
-	get traceContext() {
-		return this.ctx?.traceContext;
+	get traceContext(): TraceContext | undefined {
+		return (
+			this.customHandlerContext?.traceContext ??
+			this.invocationContext?.traceContext
+		);
 	}
 
 	/**
 	 * Retry information if the function is configured with a retry policy.
 	 * @returns The RetryContext, or undefined if not in Azure or no retry policy
 	 */
-	get retryContext() {
-		return this.ctx?.retryContext;
+	get retryContext(): RetryContext | undefined {
+		return (
+			this.customHandlerContext?.retryContext ??
+			this.invocationContext?.retryContext
+		);
 	}
 
 	/**
@@ -189,8 +207,10 @@ export class AzureContext {
 	 * @param args - Additional arguments to include in the log
 	 */
 	log(message: string, ...args: unknown[]): void {
-		if (this.ctx) {
-			this.ctx.log(message, ...args);
+		if (this.customHandlerContext) {
+			this.customHandlerContext.log(message, ...args);
+		} else if (this.invocationContext) {
+			this.invocationContext.log(message, ...args);
 		} else {
 			console.log(message, ...args);
 		}
@@ -212,8 +232,10 @@ export class AzureContext {
 	 * @param args - Additional arguments to include in the log
 	 */
 	warn(message: string, ...args: unknown[]): void {
-		if (this.ctx) {
-			this.ctx.warn(message, ...args);
+		if (this.customHandlerContext) {
+			this.customHandlerContext.warn(message, ...args);
+		} else if (this.invocationContext) {
+			this.invocationContext.warn(message, ...args);
 		} else {
 			console.warn(message, ...args);
 		}
@@ -226,8 +248,10 @@ export class AzureContext {
 	 * @param args - Additional arguments to include in the log
 	 */
 	error(message: string, ...args: unknown[]): void {
-		if (this.ctx) {
-			this.ctx.error(message, ...args);
+		if (this.customHandlerContext) {
+			this.customHandlerContext.error(message, ...args);
+		} else if (this.invocationContext) {
+			this.invocationContext.error(message, ...args);
 		} else {
 			console.error(message, ...args);
 		}
@@ -240,8 +264,10 @@ export class AzureContext {
 	 * @param args - Additional arguments to include in the log
 	 */
 	trace(message: string, ...args: unknown[]): void {
-		if (this.ctx) {
-			this.ctx.trace(message, ...args);
+		if (this.customHandlerContext) {
+			this.customHandlerContext.trace(message, ...args);
+		} else if (this.invocationContext) {
+			this.invocationContext.trace(message, ...args);
 		} else {
 			console.debug(message, ...args);
 		}
@@ -296,7 +322,7 @@ export interface AzurePluginConfig {
  * Basic usage:
  * ```typescript
  * import { Elysia } from 'elysia'
- * import { azure } from 'elysia-azurefunc-adapter'
+ * import { azure } from '@opsydyn/elysia-az-functionapp'
  *
  * const app = new Elysia()
  *   .use(azure())
@@ -319,10 +345,35 @@ export const azure = (config?: AzurePluginConfig) => {
 	return new Elysia({
 		name: config?.name ?? "elysia-azure-functions",
 		seed: config,
-	}).derive({ as: "global" }, ({ request }) => ({
-		azure: new AzureContext(getAzureContext(request)),
+		sucrose: {
+			gcTime: null,
+		},
+	}).derive({ as: "scoped" }, ({ request }) => ({
+		azure: new AzureContext(getAzureRuntimeContext(request)),
 	}));
 };
 
+export {
+	AZURE_CONTEXT,
+	AZURE_CUSTOM_HANDLER_CONTEXT,
+	createAzureCustomHandlerContext,
+	getAzureCustomHandlerContext,
+	getAzureRuntimeContext,
+} from "./context";
+
+export type { AzureCustomHandlerContext, AzureRuntimeContext } from "./context";
+
+// Re-export utilities for testing
+export {
+	streamToAsyncIterator,
+	headersToObject,
+	cookiesFromHeaders,
+	parseCookieString,
+} from "./utils";
+
 // Re-export types for convenience
-export type { InvocationContext } from "@azure/functions";
+export type {
+	InvocationContext,
+	RetryContext,
+	TraceContext,
+} from "@azure/functions";

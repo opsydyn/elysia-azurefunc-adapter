@@ -1,4 +1,4 @@
-# Contributing to elysia-azurefunc-adapter
+# Contributing to @opsydyn/elysia-az-functionapp
 
 Thank you for your interest in contributing!
 

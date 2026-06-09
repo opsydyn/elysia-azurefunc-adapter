@@ -1,7 +1,10 @@
 {
-  "name": "@elysia-azure/adapter",
+  "name": "@opsydyn/elysia-az-functionapp",
   "version": "1.0.0",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bun": "./src/bun.ts"
+  },
   "publish": {
     "include": ["src/**/*.ts", "README.md", "LICENSE"]
   }

@@ -1,25 +1,26 @@
 {
-  "name": "elysia-azurefunc-adapter",
+  "name": "@opsydyn/elysia-az-functionapp",
   "version": "1.0.0",
-  "description": "Azure Functions adapter for Elysia. Run Elysia on Azure Functions.",
-  "author": "Your Name",
+  "description": "Azure Functions adapter for Elysia with Node worker and Bun custom-handler support.",
+  "author": "Alan Currie",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-username/elysia-azurefunc-adapter.git"
+    "url": "git+https://github.com/alanpcurrie/elysia-azurefunc-adapter.git"
   },
   "bugs": {
-    "url": "https://github.com/your-username/elysia-azurefunc-adapter/issues"
+    "url": "https://github.com/alanpcurrie/elysia-azurefunc-adapter/issues"
   },
-  "homepage": "https://github.com/your-username/elysia-azurefunc-adapter#readme",
+  "homepage": "https://github.com/alanpcurrie/elysia-azurefunc-adapter#readme",
   "funding": {
     "type": "github",
-    "url": "https://github.com/sponsors/your-username"
+    "url": "https://github.com/sponsors/alanpcurrie"
   },
   "keywords": [
     "elysia",
     "azure",
     "azure-functions",
+    "custom-handler",
     "serverless",
     "faas",
     "http",
@@ -29,7 +30,7 @@
   ],
   "sideEffects": false,
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "type": "module",
   "main": "./dist/index.cjs",
@@ -46,9 +47,20 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./bun": {
+      "import": {
+        "types": "./dist/bun.d.mts",
+        "default": "./dist/bun.mjs"
+      },
+      "require": {
+        "types": "./dist/bun.d.cts",
+        "default": "./dist/bun.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [
+    "bun",
     "dist",
     "README.md",
     "LICENSE",
@@ -61,26 +73,36 @@
     "lint": "publint && attw --pack .",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "npm run build && npm run lint && changeset publish",
+    "release": "npm run build && npm run lint && npm test && changeset publish",
     "prepublishOnly": "npm run build",
+    "pretest": "npm run build",
     "size": "size-limit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test --experimental-strip-types --experimental-test-coverage test/**/*.test.ts",
+    "test:watch": "node --test --experimental-strip-types --watch test/**/*.test.ts"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.15.0",
-    "@azure/functions": "^4.1.0",
-    "@changesets/cli": "^2.29.7",
-    "@size-limit/preset-small-lib": "^11.0.0",
-    "@types/node": "^20.10.0",
-    "elysia": "^1.4.16",
-    "publint": "^0.2.0",
-    "size-limit": "^11.0.0",
-    "tsdown": "^0.16.0",
-    "typescript": "^5.3.2"
+    "@arethetypeswrong/cli": "^0.18.3",
+    "@azure/functions": "^4.16.0",
+    "@changesets/cli": "^2.31.0",
+    "@size-limit/preset-small-lib": "^12.1.0",
+    "@types/node": "^25.9.1",
+    "elysia": "1.4.28",
+    "publint": "^0.3.21",
+    "size-limit": "^12.1.0",
+    "tsdown": "^0.22.1",
+    "typescript": "^6.0.3"
   },
   "peerDependencies": {
     "@azure/functions": "^4.0.0",
     "elysia": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@azure/functions": {
+      "optional": true
+    },
+    "elysia": {
+      "optional": false
+    }
   },
   "size-limit": [
     {

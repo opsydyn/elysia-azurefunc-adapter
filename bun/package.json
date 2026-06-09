@@ -1,0 +1,5 @@
+{
+  "main": "../dist/bun.cjs",
+  "module": "../dist/bun.mjs",
+  "types": "../dist/bun.d.cts"
+}
